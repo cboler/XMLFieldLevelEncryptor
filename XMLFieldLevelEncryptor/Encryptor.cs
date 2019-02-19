@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.Serialization;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using System.Xml;
 using Microsoft.AspNetCore.DataProtection;
@@ -64,7 +66,10 @@ namespace XMLFieldLevelEncryptor
 
         public static XmlDocument Decrypt(XMLTransmission xmlTransmission)
         {
+            foreach (var entry in xmlTransmission.EncryptionKeys)
+            {
 
+            }
 
             return new XmlDocument();
         }
@@ -81,42 +86,122 @@ namespace XMLFieldLevelEncryptor
 
         public byte[] Protect(byte[] plaintext)
         {
+            byte[] encrypted = null;
+
             if (Configuration.EncryptionType.Equals(EncryptionType.AES))
             {
-                using (var aes = System.Security.Cryptography.Aes.Create())
+                using (var aes = Aes.Create())
                 {
-                    
+                    aes.GenerateKey();
+                    aes.GenerateIV();
+
+                    // Create an encryptor to perform the stream transform.
+                    var encryptor = aes.CreateEncryptor();
+
+                    // Create the streams used for encryption.
+                    using (MemoryStream msEncrypt = new MemoryStream())
+                    {
+                        using (CryptoStream csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write))
+                        {
+                            using (StreamWriter swEncrypt = new StreamWriter(csEncrypt))
+                            {
+                                //Write all data to the stream.
+                                swEncrypt.Write(plaintext);
+                            }
+                            encrypted = msEncrypt.ToArray();
+                        }
+
+                    }
                 }
             }
             else
             {
-                using (var des = System.Security.Cryptography.TripleDES.Create())
+                using (var des = TripleDES.Create())
                 {
+                    des.GenerateKey();
+                    des.GenerateIV();
 
+                    // Create an encryptor to perform the stream transform.
+                    var encryptor = des.CreateEncryptor();
+
+                    // Create the streams used for encryption.
+                    using (MemoryStream msEncrypt = new MemoryStream())
+                    {
+                        using (CryptoStream csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write))
+                        {
+                            using (StreamWriter swEncrypt = new StreamWriter(csEncrypt))
+                            {
+                                //Write all data to the stream.
+                                swEncrypt.Write(plaintext);
+                            }
+                            encrypted = msEncrypt.ToArray();
+                        }
+
+                    }
                 }
             }
 
-            return null;
+            return encrypted;
         }
 
         public byte[] Unprotect(byte[] protectedData)
         {
+            var plaintext = "";
+
             if (Configuration.EncryptionType.Equals(EncryptionType.AES))
             {
-                using (var aes = System.Security.Cryptography.Aes.Create())
+                using (var aes = Aes.Create())
                 {
+                    aes.GenerateKey();
+                    aes.GenerateIV();
 
+                    // Create a decryptor to perform the stream transform.
+                    var decryptor = aes.CreateDecryptor();
+
+                    // Create the streams used for decryption.
+                    using (MemoryStream msDecrypt = new MemoryStream(protectedData))
+                    {
+                        using (CryptoStream csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read))
+                        {
+                            using (StreamReader srDecrypt = new StreamReader(csDecrypt))
+                            {
+
+                                // Read the decrypted bytes from the decrypting stream
+                                // and place them in a string.
+                                plaintext = srDecrypt.ReadToEnd();
+                            }
+                        }
+                    }
                 }
             }
             else
             {
-                using (var des = System.Security.Cryptography.TripleDES.Create())
+                using (var des = TripleDES.Create())
                 {
+                    des.GenerateKey();
+                    des.GenerateIV();
 
+                    // Create a decryptor to perform the stream transform.
+                    var decryptor = des.CreateDecryptor();
+
+                    // Create the streams used for decryption.
+                    using (MemoryStream msDecrypt = new MemoryStream(protectedData))
+                    {
+                        using (CryptoStream csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read))
+                        {
+                            using (StreamReader srDecrypt = new StreamReader(csDecrypt))
+                            {
+
+                                // Read the decrypted bytes from the decrypting stream
+                                // and place them in a string.
+                                plaintext = srDecrypt.ReadToEnd();
+                            }
+                        }
+                    }
                 }
             }
 
-            return null;
+            return System.Text.Encoding.UTF8.GetBytes(plaintext);
         }
 
         public IDataProtector CreateProtector(string purpose)
